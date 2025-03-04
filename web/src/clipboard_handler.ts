@@ -7,12 +7,19 @@ import * as stream_data from "./stream_data.ts";
 import * as topic_link_util from "./topic_link_util.ts";
 
 // The standard Clipboard API do not support custom mime types like
-// text/x-gfm, but this approach does.
+// text/x-gfm, but this approach does, except on Safari.
 export function execute_copy(handle_copy_event: (e: ClipboardEvent) => void): void {
+    const dummy = document.createElement("input");
+    document.body.append(dummy);
+    // This is required for getting the copy command to work on Safari.
+    // The actual data copied is set by the event handler.
+    dummy.value = "dummy text";
+    dummy.select();
     document.addEventListener("copy", handle_copy_event);
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     document.execCommand("copy");
     document.removeEventListener("copy", handle_copy_event);
+    dummy.remove();
 }
 
 export async function copy_link_to_clipboard(link: string): Promise<void> {
