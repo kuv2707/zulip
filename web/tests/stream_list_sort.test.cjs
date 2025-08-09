@@ -10,6 +10,7 @@ const {run_test} = require("./lib/test.cjs");
 const stream_data = zrequire("stream_data");
 const stream_list_sort = zrequire("stream_list_sort");
 const settings_config = zrequire("settings_config");
+const channel_folders = zrequire("channel_folders");
 const {initialize_user_settings} = zrequire("user_settings");
 
 // Start with always filtering out inactive streams.
@@ -25,6 +26,7 @@ const scalene = {
     stream_id: 1,
     pin_to_top: true,
     is_recently_active: true,
+    folder_id: 1,
 };
 const fast_tortoise = {
     subscribed: true,
@@ -32,6 +34,7 @@ const fast_tortoise = {
     stream_id: 2,
     pin_to_top: false,
     is_recently_active: true,
+    folder_id: 1,
 };
 const pneumonia = {
     subscribed: true,
@@ -39,6 +42,7 @@ const pneumonia = {
     stream_id: 3,
     pin_to_top: false,
     is_recently_active: false,
+    folder_id: 1,
 };
 const clarinet = {
     subscribed: true,
@@ -60,6 +64,7 @@ const stream_hyphen_underscore_slash_colon = {
     stream_id: 6,
     pin_to_top: false,
     is_recently_active: true,
+    folder_id: 2,
 };
 const muted_active = {
     subscribed: true,
@@ -68,6 +73,7 @@ const muted_active = {
     pin_to_top: false,
     is_recently_active: true,
     is_muted: true,
+    folder_id: 1,
 };
 const muted_pinned = {
     subscribed: true,
@@ -84,6 +90,29 @@ const archived = {
     pin_to_top: true,
     is_archived: true,
 };
+
+channel_folders.initialize({
+    channel_folders: [
+        {
+            name: "Frontend",
+            description: "Channels for frontend discussions",
+            rendered_description: "<p>Channels for frontend discussions</p>",
+            creator_id: null,
+            date_created: 1596710000,
+            id: 1,
+            is_archived: false,
+        },
+        {
+            name: "Backend",
+            description: "Channels for backend discussions",
+            rendered_description: "<p>Channels for backend discussions</p>",
+            creator_id: null,
+            date_created: 1596720000,
+            id: 2,
+            is_archived: false,
+        },
+    ],
+});
 
 function sort_groups(query) {
     const streams = stream_data.subscribed_stream_ids();
@@ -121,7 +150,7 @@ test("no_subscribed_streams", () => {
     assert.equal(stream_list_sort.first_row(), undefined);
 });
 
-test("basics", () => {
+test("basics", ({override}) => {
     stream_data.add_sub(scalene);
     stream_data.add_sub(fast_tortoise);
     stream_data.add_sub(pneumonia);
@@ -146,6 +175,26 @@ test("basics", () => {
         stream_hyphen_underscore_slash_colon.stream_id,
     ]);
     assert.deepEqual(normal.muted_streams, [muted_active.stream_id]);
+    assert.deepEqual(normal.inactive_streams, [pneumonia.stream_id]);
+
+    assert.deepEqual(stream_list_sort.get_stream_ids(), [
+        scalene.stream_id,
+        muted_pinned.stream_id,
+        clarinet.stream_id,
+        fast_tortoise.stream_id,
+        stream_hyphen_underscore_slash_colon.stream_id,
+        muted_active.stream_id,
+        pneumonia.stream_id,
+    ]);
+
+    assert.equal(
+        stream_list_sort.current_section_id_for_stream(scalene.stream_id),
+        "pinned-streams",
+    );
+    assert.equal(
+        stream_list_sort.current_section_id_for_stream(clarinet.stream_id),
+        "normal-streams",
+    );
 
     // Test keyboard UI / cursor code (currently mostly deleted).
     // TODO/channel-folders: Re-add keyboard navigation tests,
@@ -224,6 +273,21 @@ test("basics", () => {
     assert.deepEqual(sorted_sections[1].id, "normal-streams");
     assert.deepEqual(sorted_sections[1].streams, [stream_hyphen_underscore_slash_colon.stream_id]);
     assert.deepEqual(sorted_sections[1].inactive_streams, []);
+
+    override(user_settings, "web_left_sidebar_show_channel_folders", true);
+    sorted_sections = sort_groups("").sections;
+    // console.log(stream_list_sort.all_rows)
+    assert.deepEqual(sorted_sections.length, 4);
+    assert.deepEqual(sorted_sections[1].id, "2");
+    assert.deepEqual(sorted_sections[1].section_title, "BACKEND");
+    assert.deepEqual(sorted_sections[2].id, "1");
+    assert.deepEqual(sorted_sections[2].section_title, "FRONTEND");
+    // If both `pin_to_top` is true and folder_id is set, as in
+    // the channel `scalene`, then the channel ends up in the pinned
+    // section and `folder_id` is ignored.
+    assert.deepEqual(sorted_sections[2].streams, [fast_tortoise.stream_id]);
+    assert.deepEqual(sorted_sections[2].muted_streams, [muted_active.stream_id]);
+    assert.deepEqual(sorted_sections[2].inactive_streams, [pneumonia.stream_id]);
 });
 
 test("filter inactives", ({override}) => {
@@ -272,3 +336,38 @@ test("initialize", ({override}) => {
 
     assert.ok(!stream_list_sort.is_filtering_inactives());
 });
+
+test("navigate rows",() => {
+    stream_data.add_sub(scalene);
+    stream_data.add_sub(fast_tortoise);
+    stream_data.add_sub(pneumonia);
+    stream_data.add_sub(clarinet);
+    stream_data.add_sub(weaving);
+    stream_data.add_sub(stream_hyphen_underscore_slash_colon);
+    stream_data.add_sub(muted_active);
+    stream_data.add_sub(muted_pinned);
+    stream_data.add_sub(archived);
+
+    stream_list_sort.clear_all_rows_for_testing();
+    const sections = sort_groups("");
+    const all_rows = stream_list_sort.get_all_rows_for_testing();
+    console.log(sections)
+    assert(all_rows[0].stream_id === scalene.stream_id);
+    assert(all_rows[1].stream_id === muted_pinned.stream_id);
+    assert(all_rows[2].stream_id === clarinet.stream_id);
+    let next_row = stream_list_sort.next_row(all_rows[0], new Set(), new Set(), all_rows[0].stream_id)
+    assert.deepEqual(next_row.stream_id, muted_pinned.stream_id);
+    console.log(next_row)
+    next_row = stream_list_sort.next_row(
+        all_rows[0],
+        new Set(),
+        new Set(["pinned-streams"]),
+        all_rows[0].stream_id,
+    );
+    // `muted_pinned` is skipped this time
+    assert.deepEqual(next_row.stream_id, clarinet.stream_id);
+
+    assert.deepEqual(stream_list_sort.next_row(all_rows.at(-1), new Set(), new Set(), all_rows[0].stream_id), undefined);
+
+    console.log(next_row)
+})

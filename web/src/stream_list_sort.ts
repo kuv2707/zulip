@@ -31,6 +31,14 @@ let all_rows: StreamListRow[] = [];
 // to avoid making left sidebar rendering a quadratic operation.
 let filter_out_inactives = false;
 
+export function get_all_rows_for_testing(): StreamListRow[] {
+    return all_rows;
+}
+
+export function clear_all_rows_for_testing(): void {
+    all_rows.length = 0;
+}
+
 export function get_stream_ids(): number[] {
     return all_rows.flatMap((row) => (row.type === "stream" ? row.stream_id : []));
 }
