@@ -5009,6 +5009,17 @@ class SubscriptionAPITest(ZulipTestCase):
         data = self.assert_json_success(response)
         self.assertEqual(data["new_subscription_messages_sent"], False)
 
+        response = self.subscribe_via_post(
+            desdemona,
+            ["Test stream 3"],
+            dict(
+                principals=orjson.dumps(user_ids).decode(),
+                send_new_subscription_messages=orjson.dumps(False).decode(),
+            ),
+        )
+        data = self.assert_json_success(response)
+        self.assertEqual("new_subscription_messages_sent" in data, False)
+
 
 class InviteOnlyStreamTest(ZulipTestCase):
     def test_must_be_subbed_to_send(self) -> None:
