@@ -1016,18 +1016,20 @@ def add_subscriptions_backend(
     result["already_subscribed"] = dict(result["already_subscribed"])
 
     if send_new_subscription_messages:
-        if len(result["subscribed"]) <= settings.MAX_BULK_NEW_SUBSCRIPTION_MESSAGES:
-            send_messages_for_new_subscribers(
-                user_profile=user_profile,
-                subscribers=subscribers,
-                new_subscriptions=result["subscribed"],
-                id_to_user_profile=id_to_user_profile,
-                created_streams=created_streams,
-                announce=announce,
-            )
-            result["new_subscription_messages_sent"] = True
-        else:
-            result["new_subscription_messages_sent"] = False
+        send_new_subscription_messages = (
+            len(result["subscribed"]) <= settings.MAX_BULK_NEW_SUBSCRIPTION_MESSAGES
+        )
+        result["new_subscription_messages_sent"] = send_new_subscription_messages
+
+    send_messages_for_new_subscribers(
+        user_profile=user_profile,
+        subscribers=subscribers,
+        new_subscriptions=result["subscribed"],
+        id_to_user_profile=id_to_user_profile,
+        created_streams=created_streams,
+        announce=announce,
+        send_you_were_just_subscribed_messages=send_new_subscription_messages,
+    )
 
     result["subscribed"] = dict(result["subscribed"])
     result["already_subscribed"] = dict(result["already_subscribed"])
@@ -1043,6 +1045,7 @@ def send_messages_for_new_subscribers(
     id_to_user_profile: dict[str, UserProfile],
     created_streams: list[Stream],
     announce: bool,
+    send_you_were_just_subscribed_messages: bool = True,
 ) -> None:
     """
     If you are subscribing lots of new users to new streams,
@@ -1062,7 +1065,7 @@ def send_messages_for_new_subscribers(
     # Inform the user if someone else subscribed them to stuff,
     # or if a new stream was created with the "announce" option.
     notifications = []
-    if new_subscriptions:
+    if new_subscriptions and send_you_were_just_subscribed_messages:
         for id, subscribed_stream_names in new_subscriptions.items():
             if id == str(user_profile.id):
                 # Don't send a notification DM if you subscribed yourself.
