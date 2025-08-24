@@ -13,7 +13,6 @@ import {$t} from "./i18n.ts";
 import {pick_empty_narrow_banner} from "./narrow_banner.ts";
 import * as narrow_state from "./narrow_state.ts";
 import * as popover_menus from "./popover_menus.ts";
-import {realm} from "./state_data.ts";
 import {
     EXTRA_LONG_HOVER_DELAY,
     INSTANT_HOVER_DELAY,
@@ -240,12 +239,7 @@ export function initialize(): void {
         trigger: "mouseenter",
         appendTo: () => document.body,
         onShow(instance) {
-            instance.setContent(
-                $t(
-                    {defaultMessage: `Maximum message length: {max_length} characters`},
-                    {max_length: realm.max_message_length},
-                ),
-            );
+            instance.setContent(String($("#compose-limit-indicator").data("data-tippy-content")));
         },
     });
 
