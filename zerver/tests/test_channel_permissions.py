@@ -1473,3 +1473,45 @@ class ChannelAdministerPermissionTest(ZulipTestCase):
             },
         )
         self.assert_json_success(result)
+
+    def test_can_change_default_code_block_language(self) -> None:
+        iago = self.example_user("iago")
+        hamlet = self.example_user("hamlet")
+        realm = iago.realm
+        stream = self.make_stream("test_stream")
+        realm = get_realm("zulip")
+        self.assertEqual(stream.default_code_block_language, realm.default_code_block_language)
+        result = self.api_patch(
+            iago,
+            f"/api/v1/streams/{stream.id}",
+            {"default_code_block_language": "python"},
+        )
+        self.assert_json_success(result)
+        stream = get_stream("test_stream", realm)
+        self.assertEqual(stream.default_code_block_language, "python")
+
+        result = self.api_patch(
+            hamlet,
+            f"/api/v1/streams/{stream.id}",
+            {"default_code_block_language": "rust"},
+        )
+        self.assert_json_error(result, "You do not have permission to administer this channel.")
+        stream = get_stream("test_stream", realm)
+        self.assertEqual(stream.default_code_block_language, "python")
+
+        hamlet_group = check_add_user_group(realm, "aaron_group", [hamlet], acting_user=iago)
+        do_change_stream_group_based_setting(
+            stream,
+            "can_administer_channel_group",
+            hamlet_group,
+            acting_user=iago,
+        )
+
+        result = self.api_patch(
+            hamlet,
+            f"/api/v1/streams/{stream.id}",
+            {"default_code_block_language": "rust"},
+        )
+        self.assert_json_success(result)
+        stream = get_stream("test_stream", realm)
+        self.assertEqual(stream.default_code_block_language, "rust")
