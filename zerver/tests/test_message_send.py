@@ -31,6 +31,7 @@ from zerver.actions.realm_settings import (
     do_set_realm_property,
 )
 from zerver.actions.streams import (
+    do_change_default_code_block_language,
     do_change_stream_group_based_setting,
     do_change_stream_permission,
     do_deactivate_stream,
@@ -3718,3 +3719,47 @@ class CheckMessageTest(ZulipTestCase):
             "Only the general chat topic is allowed in this channel.",
         ):
             check_message(sender, client, addressee_named_topic, message_content, realm)
+
+    def test_message_default_code_block_language(self) -> None:
+        realm = get_realm("zulip")
+        iago = self.example_user("iago")
+        client = make_client(name="test suite")
+        stream = get_stream("Denmark", realm)
+
+        do_set_realm_property(realm, "default_code_block_language", "javascript", acting_user=iago)
+        do_change_default_code_block_language(stream, "python", acting_user=iago)
+        self.login_user(iago)
+
+        topic_name = "issue"
+        message_content = "```\nprint('Hello, world!')\n```"
+        addressee = Addressee.for_stream(stream, topic_name)
+
+        # Stream level value should take precedence over realm level value.
+        ret = check_message(iago, client, addressee, message_content, realm)
+        assert ret.message.rendered_content is not None
+        self.assertIn('data-code-language="Python"', ret.message.rendered_content)
+
+        # When editing the message content, stream level value should still be used.
+        sent_message_result = do_send_messages([ret])
+        # assert sent_message_result[0].message_id is not None
+        edit_result = self.client_patch(
+            "/json/messages/" + str(sent_message_result[0].message_id),
+            {
+                "content": "```\nprint('Hello, Zulip!')\n```",
+            },
+        )
+        self.assert_json_success(edit_result)
+        ret.message.refresh_from_db()
+        self.assertIn('data-code-language="Python"', ret.message.rendered_content)
+
+        # DMs should use the realm level value.
+        addressee = Addressee.for_user_ids([iago.id], realm=realm)
+        ret = check_message(iago, client, addressee, message_content, realm)
+        assert ret.message.rendered_content is not None
+        self.assertIn('data-code-language="JavaScript"', ret.message.rendered_content)
+
+        # If the stream level value is empty, then it should use the realm level value.
+        do_change_default_code_block_language(stream, "", acting_user=iago)
+        ret = check_message(iago, client, addressee, message_content, realm)
+        assert ret.message.rendered_content is not None
+        self.assertIn('data-code-language="JavaScript"', ret.message.rendered_content)
